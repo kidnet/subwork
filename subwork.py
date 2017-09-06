@@ -4,12 +4,6 @@ import tempfile
 import os
 import time
 
-class CommandExecutionError(Exception):
-    pass
-
-class CommandExecutionTimeout(Exception):
-    pass
-
 class SubWork(object):
     """
     add timeout support!
@@ -30,21 +24,16 @@ class SubWork(object):
         #Run cmd.
         #Split command string.
         cmd = shlex.split(self._cmd)
-        try:
-            self._Popen = subprocess.Popen(args=cmd, 
-                                          stdout=self._stdout_fd, 
-                                          stderr=self._stderr_fd, 
-                                          cwd=self._cwd)
-            self._pid = self._Popen.pid
-            self._start_time = time.time()
-            while (self._Popen.poll() == None and 
-                    (time.time() - self._start_time) < self._timeout):
-                time.sleep(1)
-        except (OSError, ValueError), e:
-            #raise exceptions.CommandExecutionError("Execute Commonand Filed.", e)
-            raise
-        except Exception:
-            raise
+        self._Popen = subprocess.Popen(args=cmd, 
+                                       stdout=self._stdout_fd, 
+                                       stderr=self._stderr_fd, 
+                                       cwd=self._cwd)
+        self._pid = self._Popen.pid
+        self._start_time = time.time()
+
+        while (self._Popen.poll() == None and 
+                (time.time() - self._start_time) < self._timeout):
+            time.sleep(1)
             
         _r_code = self._Popen.poll()
 
@@ -96,10 +85,14 @@ class SubWork(object):
             if self._is_tty:
                 self._stdout_fd = None
                 self._stderr_fd = None
-            elif self._stdout is None or self._stderr is None \
-                or self._stdout == self._stderr:
+
+            elif (self._stdout is None or 
+                self._stderr is None or 
+                self._stdout == self._stderr):
+
                 self._stdout_fd = tempfile.TemporaryFile()
                 self._stderr_fd = tempfile.TemporaryFile()
+
             else:
                 self._stdout_fd = self._create_handler(self._stdout)
                 self._stderr_fd = self._create_handler(self._stderr)
@@ -108,20 +101,11 @@ class SubWork(object):
                 self._stderr_fd.write(file_start)
                 self._stderr_fd.flush()
 
-            try:
-                self._run()
-            except Exception:
-                raise
+            self._run()
 
             if self._timestamp:
                 end_time = time.strftime("%Y-%m-%d %X", time.localtime())
                 file_end = "End Time: " + end_time + "\n"
-
-            #self._stdout_fd.write(file_end)
-            #self._stderr_fd.write(file_end)
-
-            #self._stdout_fd.flush()
-            #self._stderr_fd.flush()
 
             #Write and Read output content.
             if not self._is_tty:
