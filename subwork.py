@@ -21,7 +21,6 @@ class SubWork(object):
         self._return_code = None
         self._cwd = None
         self._start_time = None
-        self._msg = ''
 
     def _send_signal(self, pid, sig):
         """
