@@ -1,10 +1,14 @@
 import subprocess
 import shlex
 import tempfile
-import signal
 import os
 import time
-from distribute import exceptions
+
+class CommandExecutionError(Exception):
+    pass
+
+class CommandExecutionTimeout(Exception):
+    pass
 
 class SubWork(object):
     """
@@ -21,41 +25,6 @@ class SubWork(object):
         self._return_code = None
         self._cwd = None
         self._start_time = None
-
-    def _send_signal(self, pid, sig):
-        """
-        Send a signal to the process
-        """
-        os.kill(pid, sig)
-
-    def _terminate(self, pid):
-        """
-        Terminate the process with SIGTERM
-        """
-        self._send_signal(pid, signal.SIGTERM)
-
-    def _kill(self, pid):
-        """
-        Kill the process with SIGKILL
-        """
-        self._send_signal(pid, signal.SIGKILL)
-
-    def _wait(self, Popen):
-        """
-        Wait child exit signal
-        """
-        Popen.wait()
-
-    def _free_child(self, pid, Popen):
-        """
-        Kill process by pid
-        """
-        try:
-            self._terminate(pid)
-            self._kill(pid)
-            self._wait(Popen)
-        except Exception:
-            pass
 
     def _run(self):
         #Run cmd.
@@ -77,13 +46,22 @@ class SubWork(object):
         except Exception:
             raise
             
-        # Child is not exit yet.
+        _r_code = self._Popen.poll()
+
+        # If child process has not exited yet, terminate it.
         if self._Popen.poll() == None: 
-            self._free_child(self._pid, self._Popen)
-            #Throw the Exception that run command timeout.
-            raise exceptions.CommandExecutionTimeout("Command Execution Timeout %ds." % self._timeout)
-        else:
-            self._return_code = self._Popen.poll()
+            self._Popen.terminate()
+            _r_code = 254
+
+        # Wait for the child process to exit.
+        time.sleep(1)
+
+        # If child process has not been terminated yet, kill it. 
+        if self._Popen.poll() == None:
+            self._Popen.kill()
+            _r_code = 255
+
+        self._return_code = _r_code
 
     def start(self,
               cmd, 
@@ -139,14 +117,20 @@ class SubWork(object):
                 end_time = time.strftime("%Y-%m-%d %X", time.localtime())
                 file_end = "End Time: " + end_time + "\n"
 
-            self._stdout_fd.write(file_end)
-            self._stderr_fd.write(file_end)
+            #self._stdout_fd.write(file_end)
+            #self._stderr_fd.write(file_end)
 
-            self._stdout_fd.flush()
-            self._stderr_fd.flush()
+            #self._stdout_fd.flush()
+            #self._stderr_fd.flush()
 
-            #Read output content.
+            #Write and Read output content.
             if not self._is_tty:
+                self._stdout_fd.write(file_end)
+                self._stderr_fd.write(file_end)
+
+                self._stdout_fd.flush()
+                self._stderr_fd.flush()
+
                 self._stdout_fd.seek(0)
                 self._stderr_fd.seek(0)
                 info = file_start + self._stdout_fd.read() + file_end
