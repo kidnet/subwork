@@ -3,7 +3,7 @@
 A subprocess module with "timeout" feture.
 
 - Example
-This is a example.
+------
     from subwork import SubWork
 
     cmd = "/bin/ls /tmp"
